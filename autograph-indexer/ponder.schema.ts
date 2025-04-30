@@ -1,6 +1,9 @@
 import { onchainTable } from "ponder";
 
-export const example = onchainTable("example", (t) => ({
-  id: t.text().primaryKey(),
-  name: t.text(),
-}));
+export const autograph = onchainTable("autograph", (t) => ({
+    hash: t.hex().primaryKey(),
+    message: t.text().notNull(),
+    location: t.text().notNull(),
+    signer: t.text().notNull(),
+    timestamp: t.bigint().notNull(),
+}))
