@@ -4,7 +4,7 @@ import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 
 
-const RATE_LIMIT_WAIT_TIME = 5000
+const RATE_LIMIT_WAIT_TIME = 2000
 const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
 

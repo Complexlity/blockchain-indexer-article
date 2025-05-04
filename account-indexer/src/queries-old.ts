@@ -49,8 +49,9 @@ export async function getFilteredUserTransactions(address: Address, chain: EvmCh
 
         // Filter out transactions with value <= 0
         const filteredUserTransactions = allUserTransactions.filter(tx => Number(tx.value) > 0);
-
+        console.log(`Filtered transactions. Total transactions after filtering: ${filteredUserTransactions.length}`);
         return filteredUserTransactions
+
 
     } catch (error) {
         console.error("Error fetching user transactions:", error);
@@ -72,19 +73,9 @@ export async function getBalanceHistory<T extends PublicClient>(address: Address
         const txTimestamp = new Date(tx.block_timestamp);
         const blockNumber = BigInt(tx.block_number)
 
-        let balanceWeiAtBlockNumber;
-        while (true) {
-            try {
-            balanceWeiAtBlockNumber = await client.getBalance({
-                address: address, blockNumber
-            });
-            break; // Exit the loop if successful
-            } catch (error) {
-            console.error("Error fetching balance at block number:", error);
-            console.log("Retrying in 5 seconds...");
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            }
-        }
+        const balanceWeiAtBlockNumber = await client.getBalance({
+            address: address, blockNumber
+        })
         //wait 5 seconds after every 30 get balance requests
         if (i % 30 === 0) {
             console.log("Waiting to avoid rate limitiing issues")
@@ -109,6 +100,6 @@ export async function getBalanceHistory<T extends PublicClient>(address: Address
             balanceWei: currentBalanceWei.toString(),
         });
     }
-    
+
     return balanceHistory;
 }
