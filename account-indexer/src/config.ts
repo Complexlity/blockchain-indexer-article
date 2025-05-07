@@ -2,9 +2,14 @@ import { EvmChain } from '@moralisweb3/common-evm-utils';
 import Moralis from "moralis";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
+import { config } from 'dotenv'
+
+config()
 
 
-const RATE_LIMIT_WAIT_TIME = 2000
+const BALANCE_REQUEST_WAIT_TIME = 2000
+const NUMBER_OF_BALANCE_REQUESTS_BEFORE_LIMIT = 30
+const TRANSACTIONS_REQUESTS_WAIT_TIME = 500
 const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
 
@@ -38,5 +43,5 @@ const supportedChains = {
     }
 }
 
-export { startMoralis, supportedChains, RATE_LIMIT_WAIT_TIME };
+export { startMoralis, supportedChains, BALANCE_REQUEST_WAIT_TIME, NUMBER_OF_BALANCE_REQUESTS_BEFORE_LIMIT, TRANSACTIONS_REQUESTS_WAIT_TIME };
 
