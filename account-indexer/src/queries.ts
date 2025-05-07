@@ -1,5 +1,5 @@
 import { EvmChain, EvmTransaction } from "@moralisweb3/common-evm-utils";
-import { RATE_LIMIT_WAIT_TIME, startMoralis } from "./config";
+import { NUMBER_OF_BALANCE_REQUESTS_BEFORE_LIMIT, BALANCE_REQUEST_WAIT_TIME, startMoralis, TRANSACTIONS_REQUESTS_WAIT_TIME } from "./config";
 import { createPublicClient, formatEther, PublicClient, type Address } from "viem";
 
 const Moralis = await startMoralis();
@@ -11,7 +11,8 @@ type BalanceHistory = {
     balanceWei: string;
     transactionHash?: string;
 }
-export async function getFilteredUserTransactions(address: Address, chain: EvmChain) {
+
+export async function getFilteredUserTransactions(address: Address, chain: EvmChain): Promise<TransactionResult[]> {
     const allUserTransactions: TransactionResult[] = [];
     console.log(`Fetching all transactions for address: ${address} on chain: ${chain.name}...`);
     let cursor;
@@ -36,7 +37,7 @@ export async function getFilteredUserTransactions(address: Address, chain: EvmCh
 
             if (cursor) {
                 console.log("Adding delay to avoid rate limiting...");
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, TRANSACTIONS_REQUESTS_WAIT_TIME));
                 console.log("Delay complete.");
             }
         } while (cursor);
@@ -47,10 +48,10 @@ export async function getFilteredUserTransactions(address: Address, chain: EvmCh
             return allUserTransactions
         }
 
-        // Filter out transactions with value <= 0
-        const filteredUserTransactions = allUserTransactions.filter(tx => Number(tx.value) > 0);
+        //Optional: Filter out transactions with value <= 0
+        // const filteredUserTransactions = allUserTransactions.filter(tx => Number(tx.value) > 0);
 
-        return filteredUserTransactions
+        return allUserTransactions
 
     } catch (error) {
         console.error("Error fetching user transactions:", error);
@@ -67,48 +68,49 @@ export async function getBalanceHistory<T extends PublicClient>(address: Address
     console.log("Calculating balance history...");
     const balanceHistory: BalanceHistory[] = [];
 
-    let i = 0
+    let previousBalanceWei = currentBalanceWei;
+    let i = 0;
+
     for (const tx of transactions) {
         const txTimestamp = new Date(tx.block_timestamp);
-        const blockNumber = BigInt(tx.block_number)
+        const blockNumber = BigInt(tx.block_number);
 
-        let balanceWeiAtBlockNumber;
-        while (true) {
-            try {
-            balanceWeiAtBlockNumber = await client.getBalance({
-                address: address, blockNumber
-            });
-            break; // Exit the loop if successful
-            } catch (error) {
-            console.error("Error fetching balance at block number:", error);
-            console.log("Retrying in 5 seconds...");
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            }
-        }
-        //wait 5 seconds after every 30 get balance requests
-        if (i % 30 === 0) {
-            console.log("Waiting to avoid rate limitiing issues")
-            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_WAIT_TIME));
-            console.log(`Waited ${RATE_LIMIT_WAIT_TIME / 1000} seconds to avoid rate limiting issues`)
-        }
-
-        balanceHistory.push({
-            timestamp: txTimestamp,
-            balanceEth: parseFloat(formatEther(balanceWeiAtBlockNumber)),
-            balanceWei: balanceWeiAtBlockNumber.toString(),
-            transactionHash: tx.hash,
+        const balanceWeiAtBlockNumber = await client.getBalance({
+            address: address, blockNumber
         });
-        i++
+
+        // Calculate the balance change
+        const balanceChangeWei = previousBalanceWei - balanceWeiAtBlockNumber;
+        const balanceChangeEth = parseFloat(formatEther(balanceChangeWei));
+
+        // Only save to balance history if the balance change is significant
+        if (Math.abs(balanceChangeEth) > 0.001) {
+            balanceHistory.push({
+                timestamp: txTimestamp,
+                balanceEth: parseFloat(formatEther(balanceWeiAtBlockNumber)),
+                balanceWei: balanceWeiAtBlockNumber.toString(),
+                transactionHash: tx.hash,
+            });
+            previousBalanceWei = balanceWeiAtBlockNumber; // Update the previous balance
+        }
+        // Wait some seconds after every 30 get balance requests. Base on testing, you can modify this 
+        if (i % NUMBER_OF_BALANCE_REQUESTS_BEFORE_LIMIT === 0 && i > 0) {
+            console.log("Waiting to avoid rate limiting issues");
+            await new Promise(resolve => setTimeout(resolve, BALANCE_REQUEST_WAIT_TIME));
+            console.log(`Waited ${BALANCE_REQUEST_WAIT_TIME / 1000} seconds to avoid rate limiting issues`);
+        }
+        i++;
     }
-    const lastItem = balanceHistory[balanceHistory.length - 1]
-    if (lastItem.balanceWei !== currentBalanceWei.toString()) {
-        //Insert the current balance
+
+    const lastItem = balanceHistory[balanceHistory.length - 1];
+    if (lastItem?.balanceWei !== currentBalanceWei.toString()) {
+        //Insert current balance as long as it's not same as last transaction balance
         balanceHistory.push({
             timestamp: new Date(),
             balanceEth: parseFloat(currentBalanceEth),
             balanceWei: currentBalanceWei.toString(),
         });
     }
-    
+
     return balanceHistory;
 }
